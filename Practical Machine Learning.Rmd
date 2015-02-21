@@ -1,0 +1,137 @@
+---
+title: "Practical Machine Learning project on Human Activity Recognition"
+date: "21 Feb 2015"
+output: html_document
+---
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. The focus so far has been to predict with movement the user is performing but not the quality of the exercise. 
+The project builds a prediction model to identify the quality of weight lifting exercises. 
+
+Source of data is 
+http://groupware.les.inf.puc-rio.br/har.
+
+Training set
+
+Load libraries 
+
+```{r}
+library(caret)
+library(randomForest)
+```
+Read data
+
+```{r}
+URL1<-"http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+URL2<-"http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+HAR_data<-read.csv(url(URL1), na.strings=c("NA",""))
+HAR_datatest<-read.csv(url(URL2), na.strings=c("NA",""))
+```
+
+Exploratory data analysis
+```{r, results='hide'}
+summary(HAR_data)
+str(HAR_data)
+```
+
+After reading the documentation decided to remove the summary rows, marked with Yes as new window, as this exists for the specific approach taken by the researchers. However, in the testing data provided for the course there is no matching variables. 
+
+```{r}
+HAR_data<-HAR_data[HAR_data$new_window=="no", ]
+summary(HAR_data$new_window)
+```
+
+Remove columns with NAs
+Check the status of NAs 
+```{r}
+missing<-colSums(is.na(HAR_data))
+summary(missing)
+```
+Doing the same for the test data 
+```{r}
+missingtest<-colSums(is.na(HAR_datatest))
+```
+
+There are columns where either all characteristics are missing or none is NAs, can be seen since missing variable takes the value either zero or 19216. Further remove the columns with NAs
+
+```{r}
+HAR_data1<-cbind(HAR_data[,1], HAR_data[2])
+nomes<-c(0)
+for (i in 1:ncol(HAR_data)) {
+  if (missing[[i]]==0) {
+      HAR_data1<-cbind(HAR_data1, HAR_data[, i])
+      nomes<-c(nomes,colnames(HAR_data[i]))
+}
+}
+nomes<-c("X1", "user_name1", nomes[2:61])
+colnames(HAR_data1)<-nomes
+
+HAR_data<-HAR_data1
+HAR_data<-HAR_data[10:62]
+```
+
+Doing the same for the test data 
+```{r}
+HAR_data1<-cbind(HAR_datatest[,1], HAR_datatest[2])
+nomes<-c(0)
+for (i in 1:ncol(HAR_datatest)) {
+  if (missing[[i]]==0) {
+      HAR_data1<-cbind(HAR_data1, HAR_datatest[, i])
+      nomes<-c(nomes,colnames(HAR_datatest[i]))
+}
+}
+nomes<-c("X1", "user_name1", nomes[2:61])
+colnames(HAR_data1)<-nomes
+HAR_datatest<-HAR_data1
+HAR_datatest<-HAR_datatest[10:61]
+```
+
+
+Also, the columns with ID, user name, window number and time stamps are removed. 
+
+Create train and test data 
+
+```{r}
+set.seed(123456)
+intrain<-createDataPartition(y=HAR_data$classe, p=0.75, list=FALSE)
+train<-HAR_data[intrain, ]
+test<-HAR_data[-intrain, ]
+```
+Check if any variables are irelevant with cleaning with near zero variance method
+```{r}
+set.seed(123456)
+HAR_dataNZV <- nearZeroVar(HAR_data, saveMetrics=TRUE)
+```
+All left variables have variance different from zero, so none is removed. 
+
+Use the Random Forest method to create a model of prediction 
+
+```{r}
+set.seed(123456)
+modelRandomForest <- randomForest(classe ~. , data=train)
+predictions <- predict(modelRandomForest, test, type = "class")
+confusionMatrix(predictions, test$classe)
+```
+Accuracy for the model is  99% as seen in the confusion matrix 
+Out of sample error is 0,05%
+
+Submission Project - generating files for project submission
+```{r}
+predictions <- predict(modelRandomForest, HAR_datatest, type = "class")
+predictions
+```
+
+```{r}
+setwd("/Users/nitinmehta/Downloads")
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(predictions)
+```
+
+
+
+
